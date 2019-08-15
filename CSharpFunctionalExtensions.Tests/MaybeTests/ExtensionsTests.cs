@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+﻿using System;
+using FluentAssertions;
 using Xunit;
 
 
@@ -9,12 +10,12 @@ namespace CSharpFunctionalExtensions.Tests.MaybeTests
         [Fact]
         public void Unwrap_extracts_value_if_not_null()
         {
-            var isntance = new MyClass();
-            Maybe<MyClass> maybe = isntance;
+            var instance = new MyClass();
+            Maybe<MyClass> maybe = instance;
 
             MyClass myClass = maybe.Unwrap();
 
-            myClass.Should().Be(isntance);
+            myClass.Should().Be(instance);
         }
 
         [Fact]
@@ -68,6 +69,42 @@ namespace CSharpFunctionalExtensions.Tests.MaybeTests
 
             result.IsSuccess.Should().BeFalse();
             result.Error.Should().Be("Error");
+        }
+
+        [Fact]
+        public void ToResult_with_custom_error_type_returns_success_if_value_exists()
+        {
+            var instance = new MyClass();
+            Maybe<MyClass> maybe = instance;
+
+            Result<MyClass, MyErrorClass> result = maybe.ToResult(new MyErrorClass());
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(instance);
+        }
+
+        [Fact]
+        public void ToResult_with_custom_error_type_returns_custom_failure_if_no_value()
+        {
+            Maybe<MyClass> maybe = null;
+
+            var errorInstance = new MyErrorClass();
+            Result<MyClass, MyErrorClass> result = maybe.ToResult(errorInstance);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Be(errorInstance);
+        }
+
+        [Fact]
+        public void ToResult_with_struct_error_type_returns_custom_failure_if_no_value_with_default_error()
+        {
+            Maybe<MyClass> maybe = null;
+
+            int errorInstance = 0;
+            Result<MyClass, int> result = maybe.ToResult(errorInstance);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Be(errorInstance);
         }
 
         [Fact]
@@ -125,6 +162,29 @@ namespace CSharpFunctionalExtensions.Tests.MaybeTests
         }
 
         [Fact]
+        public void SelectMany_returns_no_value_if_maybe_has_no_value()
+        {
+	        Maybe<int> maybe1 = 1;
+	        var maybe2 = Maybe<int>.None;
+
+	        var maybe3 = from a in maybe1 from b in maybe2 select a + b;
+
+	        maybe3.HasValue.Should().BeFalse();
+        }
+
+        [Fact]
+        public void SelectMany_returns_projection_if_maybes_has_values()
+        {
+	        Maybe<int> maybe1 = 1;
+	        Maybe<int> maybe2 = 2;
+
+	        var maybe3 = from a in maybe1 from b in maybe2 select a + b;
+
+	        maybe3.HasValue.Should().BeTrue();
+	        maybe3.Value.Should().Be(3);
+        }
+
+		[Fact]
         public void Bind_returns_new_maybe()
         {
             Maybe<MyClass> maybe = new MyClass { Property = "Some value" };
@@ -176,6 +236,27 @@ namespace CSharpFunctionalExtensions.Tests.MaybeTests
             integer.Should().Be(0);
         }
 
+        [Fact]
+        public void Match_follows_some_branch_where_there_is_a_value()
+        {
+            Maybe<MyClass> maybe = new MyClass { IntProperty = 42 };
+
+            maybe.Match(
+                Some: (value) => value.IntProperty.Should().Be(42),
+                None: () => throw new FieldAccessException("Accessed None path while maybe has value")
+            );
+        }
+
+        [Fact]
+        public void Match_follows_none_branch_where_is_no_value()
+        {
+            Maybe<MyClass> maybe = null;
+
+            maybe.Match(
+                Some: (value) => throw new FieldAccessException("Accessed Some path while maybe has no value"),
+                None: () => Assert.True(true)
+            );
+        }
 
         private static Maybe<string> GetPropertyIfExists(MyClass myClass)
         {
@@ -187,6 +268,10 @@ namespace CSharpFunctionalExtensions.Tests.MaybeTests
         {
             public string Property { get; set; }
             public int IntProperty { get; set; }
+        }
+
+        private class MyErrorClass
+        {
         }
     }
 }
